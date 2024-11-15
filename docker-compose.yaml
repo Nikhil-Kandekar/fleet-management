@@ -1,0 +1,140 @@
+version: '3.3'
+services:
+  user-management-service:
+    build: ./user-management-service
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://user-management-db:27017/fleet_users
+      - JWT_SECRET=your_jwt_secret
+    depends_on:
+      - user-management-db
+    networks:
+      - fleet-net
+
+  user-management-db:
+    image: mongo
+    ports:
+      - "27018:27017"
+    networks:
+      - fleet-net
+
+  telemetry-influxdb:
+    image: influxdb:2.7
+    ports:
+      - "8087:8086"
+    environment:
+      - INFLUXDB_URL=http://telemetry-influxdb:8086
+      - INFLUXDB_TOKEN=q6dzJRQWDpdaA62ZuPhcWOlmIongnzO9wvB8ZQodBE2_iWfAuLFAf2LTFakt925wR1F5Yt5sWek5DrOFxslc9g
+      - INFLUXDB_ORG=telemetry_org
+      - INFLUXDB_BUCKET=telemetry_bucket
+      - DOCKER_INFLUXDB_INIT_BUCKET=dashcam_metadata
+      - DOCKER_INFLUXDB_INIT_RETENTION=1w
+    volumes:
+      - influxdb-storage:/var/lib/influxdb2
+    networks:
+      - fleet-net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - fleet-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.1
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+    networks:
+      - fleet-net
+
+  telemetry-service:
+    build: ./telemetry-service
+    ports:
+      - "6000:6000"
+    depends_on:
+      - telemetry-influxdb
+      - kafka
+    restart: always
+    environment:
+      - INFLUXDB_URL=http://telemetry-influxdb:8086
+      - INFLUXDB_TOKEN=q6dzJRQWDpdaA62ZuPhcWOlmIongnzO9wvB8ZQodBE2_iWfAuLFAf2LTFakt925wR1F5Yt5sWek5DrOFxslc9g
+      - INFLUXDB_ORG=telemetry_org
+      - INFLUXDB_BUCKET=telemetry_bucket
+    networks:
+      - fleet-net
+
+  producer-service:
+    build: ./producer-service
+    depends_on:
+      - kafka
+    networks:
+      - fleet-net
+
+  dashcam-producer:
+    build: ./dashcam-service/producer
+    depends_on:
+      - kafka
+    networks:
+      - fleet-net
+
+  dashcam-consumer:
+    build: ./dashcam-service/consumer
+    depends_on:
+      - kafka
+      - telemetry-influxdb
+    volumes:
+      - ./dashcam-service/storage:/app/storage
+    environment:
+      - INFLUXDB_URL=http://telemetry-influxdb:8086
+      - INFLUXDB_TOKEN=q6dzJRQWDpdaA62ZuPhcWOlmIongnzO9wvB8ZQodBE2_iWfAuLFAf2LTFakt925wR1F5Yt5sWek5DrOFxslc9g
+      - INFLUXDB_ORG=telemetry_org
+      - INFLUXDB_BUCKET=dashcam_metadata
+    networks:
+      - fleet-net
+
+  dashcam-api:
+    build: ./dashcam-service/api
+    ports:
+      - '7000:7000'
+    depends_on:
+      - telemetry-influxdb
+    volumes:
+      - ./dashcam-service/storage:/app/storage
+    environment:
+      - INFLUXDB_URL=http://telemetry-influxdb:8086
+      - INFLUXDB_TOKEN=q6dzJRQWDpdaA62ZuPhcWOlmIongnzO9wvB8ZQodBE2_iWfAuLFAf2LTFakt925wR1F5Yt5sWek5DrOFxslc9g
+      - INFLUXDB_ORG=telemetry_org
+      - INFLUXDB_BUCKET=dashcam_metadata
+    networks:
+      - fleet-net
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"  # React app runs on port 3000 in development, Nginx serves on port 80
+    networks:
+      - fleet-net
+    depends_on:
+      - telemetry-service
+      - dashcam-api
+
+volumes:
+  influxdb-storage:
+
+networks:
+  fleet-net:
+    driver: bridge
