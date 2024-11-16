@@ -13,7 +13,7 @@ function Login() {
       const response = await axios.post('http://localhost:5000/api/auth/login', { username, password });
       localStorage.setItem('token', response.data.token);
       alert('Login successful');
-      navigate('/'); // Redirect to dashboard page or wherever needed
+      window.location.href = '/analytics';
     } catch (error) {
       console.error('Error logging in:', error);
       alert('Login failed. Please check your credentials.');

@@ -21,6 +21,7 @@ function Navbar() {
     localStorage.removeItem('token');
     setIsLoggedIn(false);
     alert("You have been logged out successfully!");
+    window.location.href = '/login';
   };
 
   return (

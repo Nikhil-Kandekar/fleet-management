@@ -20,14 +20,6 @@ function App() {
       <Routes>
         <Route path="/" element={isAuthenticated() ? <Dashboard /> : <Navigate to="/login" />} />
         <Route
-          path="/vehicle/:id"
-          element={isAuthenticated() ? <VehicleDetail /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/notifications"
-          element={isAuthenticated() ? <Notifications /> : <Navigate to="/login" />}
-        />
-        <Route
           path="/video"
           element={isAuthenticated() ? <VideoPlayback /> : <Navigate to="/login" />}
         />

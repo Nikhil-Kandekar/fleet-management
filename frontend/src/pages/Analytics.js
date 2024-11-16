@@ -74,7 +74,7 @@ function Analytics() {
                 <div key={index} className="p-4 bg-white rounded shadow-md">
                   <h2 className="text-xl font-bold">Vehicle: {data.vehicleId}</h2>
                   <p>Average Speed: {data.speed ? `${data.speed.toFixed(2)} km/h` : 'N/A'}</p>
-                  <p>Average Fuel: {data.fuel ? `${data.fuel.toFixed(2)}%` : 'N/A'}</p>
+                  <p>Average Fuel: {data.fuel ? `${data.fuel}%` : 'N/A'}</p>
                   <p>Distance Travelled: {data.distanceTravelled ? `${data.distanceTravelled} km` : 'N/A'}</p>
                 </div>
               ))
