@@ -1,83 +1,150 @@
 # Fleet Management System
+=======================
 
-This repository contains **Fleet Management System** services. The system includes services for user management, telemetry data streaming, Kafka-based message brokering, and a React-based frontend for visualization.
+A scalable, real-time fleet management system designed to monitor vehicles using GPS, vehicle telemetry data, and dashcam footage. The system provides real-time analytics, incident alerts, and role-based dashboards to fleet operators.
 
-## Key Features
+Features
+--------
 
-### User Management
-- Role-based access control.
-- Integrated InfluxDBS backend.
+-   **Real-Time Vehicle Tracking**: Monitor location, speed, fuel levels, and other telemetry data.
+-   **Dashcam Footage Viewer**: Stream and store dashcam videos with metadata for retrieval.
+-   **Role-Based Management**: User authentication and dashboards with role-specific views.
+-   **Accident Alerts**: Analyze sudden speed drops to detect potential accidents and notify operators.
+-   **Push Notifications**: Store notifications in InfluxDB and display them on the frontend.
+-   **Analytics Dashboard**: Visualize real-time and historical analytics (e.g., average speed, fuel consumption).
+-   **Maps Integration**: Track vehicle routes and statuses with map overlays.
 
-### Telemetry Analytics
-- Streaming and storage of telemetry data using InfluxDB.
-- Analytics-ready setup with bucket and retention policies.
+Architecture
+------------
 
-### Dashcam Footage
-- Producer and consumer pipelines.
-- Metadata stored in InfluxDB for retrieval and analysis.
+The Fleet Management System follows a microservices-based architecture:
 
-### Scalable Messaging
-- Kafka as a backbone for real-time data pipelines.
-- Zookeeper for reliable Kafka coordination.
+-   **Frontend**: React.js for interactive dashboards and real-time updates.
+-   **Backend**: Node.js with Express for API endpoints and Kafka consumer-producer communication.
+-   **Database**:
+    -   **InfluxDB** for storing notifications and telemetry data.
+    -   **Block Storage** (cloud/local) for video storage.
+-   **Messaging Queue**: Apache Kafka for processing telemetry data and video streams.
+-   **Deployment**: Supports local and cloud deployments with scalability in mind.
 
-### User-Friendly Frontend
-- Interactive React interface.
-- API integration for seamless user experience.
+System Workflow
+---------------
 
-## Services Overview
+1.  **Telemetry Data Pipeline**:
+    -   Kafka producer sends vehicle telemetry data (e.g., GPS, speed, fuel).
+    -   Kafka consumer stores data in InfluxDB.
+2.  **Dashcam Footage Handling**:
+    -   Kafka producer streams 10-second dashcam video chunks.
+    -   Consumer renames and stores videos with timestamps in block storage.
+    -   Frontend retrieves videos by timestamp for user playback.
+3.  **Real-Time Analytics**:
+    -   Analyze telemetry data for trends like mileage, accident detection, and fuel efficiency.
+    -   Push analytics and alerts to the dashboard.
 
-The `docker-compose.yaml` defines the following services:
+Setup Instructions
+------------------
 
-### Core Services
-- **user-management-service**: Handles user-related operations with role-based access.
-- **user-management-db**: InfluxDB instance for storing user and role data.
-- **telemetry-influxdb**: InfluxDB instance for telemetry data storage and analytics.
+### Prerequisites
 
-### Messaging and Stream Processing
-- **zookeeper**: Manages configuration and synchronization for Kafka.
-- **kafka**: Message broker for telemetry and dashcam data.
+-   **Node.js** (v16 or higher)
+-   **React.js** (latest version)
+-   **Kafka** (local setup or cloud service)
+-   **InfluxDB** (for telemetry and notification data)
+-   **MongoDB** (optional for user management if JWT-based login is implemented)
+-   **Docker** (optional for containerized deployments)
 
-### Telemetry Services
-- **telemetry-service**: Processes and streams telemetry data to InfluxDB.
-- **producer-service**: Produces telemetry data to Kafka.
+### Installation
 
-### Dashcam Services
-- **dashcam-producer**: Streams dashcam footage to Kafka.
-- **dashcam-consumer**: Consumes dashcam footage and stores metadata in InfluxDB.
-- **dashcam-api**: Provides APIs to access dashcam footage and metadata.
+1.  Clone the repository:
 
-### Frontend
-- **frontend**: React-based web application served via Nginx.
+    bash
 
----
+    Copy code
 
-## Prerequisites
+    `git clone https://github.com/Nikhil-Kandekar/fleet-management.git
+    cd fleet-management`
 
-Ensure you have the following installed:
-- Docker
-- Docker Compose
+2.  Install backend dependencies:
 
----
+    bash
 
-## Usage
-1. **Clone Repository**:
-   ```bash
-   git clone https://github.com/Nikhil-Kandekar/fleet-management
-   cd fleet-management
+    Copy code
 
-2. **Start the services**:
+    `cd backend
+    npm install`
 
-   Run the following command to build and start all the services defined in `docker-compose.yaml`:
+3.  Install frontend dependencies:
 
-   ```bash
-   docker-compose up --build
+    bash
 
-3. **Access the application**:
+    Copy code
 
-   Once the services are up and running, you can access the following components:
+    `cd frontend
+    npm install`
 
-   - **Frontend**: [http://localhost:3000](http://localhost:3000)
-   - **User Management Service**: [http://localhost:5000](http://localhost:5000)
-   - **Telemetry Service**: [http://localhost:6000](http://localhost:6000)
-   - **Dashcam API**: [http://localhost:7000](http://localhost:7000)
-   - **InfluxDB Dashboard**: [http://localhost:8087](http://localhost:8087)
+4.  Start services:
+
+    -   **Kafka**: Follow Kafka documentation for local setup.
+    -   **InfluxDB**: Set up using Docker or local installation with username `admin` and password `nbknbknbk`.
+    -   **Backend**:
+
+        bash
+
+        Copy code
+
+        `cd backend
+        npm start`
+
+    -   **Frontend**:
+
+        bash
+
+        Copy code
+
+        `cd frontend
+        npm start`
+
+### Environment Variables
+
+Create a `.env` file in the `backend` folder:
+
+env
+
+Copy code
+
+`KAFKA_BROKER=localhost:9092
+INFLUXDB_URL=http://localhost:8086
+INFLUXDB_USERNAME=admin
+INFLUXDB_PASSWORD=nbknbknbk
+BLOCK_STORAGE_PATH=/path/to/block/storage
+JWT_SECRET=your_jwt_secret`
+
+### API Endpoints
+
+#### Backend
+
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `/api/vehicles` | GET | Get vehicle telemetry data. |
+| `/api/dashcam/video` | GET | Fetch dashcam footage by timestamp. |
+| `/api/notifications` | GET | Get notifications from InfluxDB. |
+
+#### Frontend
+
+React app connects to the backend and provides real-time visualizations, maps, and dashboards.
+
+Contribution
+------------
+
+Contributions are welcome! Please follow these steps:
+
+1.  Fork the repository.
+2.  Create a new branch (`git checkout -b feature-branch`).
+3.  Commit changes (`git commit -m 'Add feature'`).
+4.  Push to the branch (`git push origin feature-branch`).
+5.  Open a pull request.
+
+License
+-------
+
+This project is licensed under the MIT License. See the LICENSE file for details.
