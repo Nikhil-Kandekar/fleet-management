@@ -2,6 +2,7 @@ const express = require('express');
 const kafka = require('kafka-node');
 const { InfluxDB, Point } = require('@influxdata/influxdb-client');
 const cors = require('cors');
+const geolib = require('geolib'); // Use geolib to calculate distance
 
 const app = express();
 const PORT = 7001;
@@ -87,6 +88,48 @@ app.get('/api/analytics', async (req, res) => {
       });
     });
 
+    // Calculate distance traveled for each vehicle
+    for (const vehicleId in analyticsData) {
+      const distanceQuery = `
+        from(bucket: "${bucket}")
+          |> range(start: -7d)
+          |> filter(fn: (r) => r["_measurement"] == "vehicle_telemetry" and r["vehicleId"] == "${vehicleId}" and (r["_field"] == "latitude" or r["_field"] == "longitude"))
+          |> group(columns: ["vehicleId"])
+          |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+          |> keep(columns: ["_time", "latitude", "longitude"])
+      `;
+
+      let distance = 0;
+      let previousPoint = null;
+
+      await new Promise((resolve, reject) => {
+        queryApi.queryRows(distanceQuery, {
+          next(row, tableMeta) {
+            const o = tableMeta.toObject(row);
+            const currentPoint = { latitude: o.latitude, longitude: o.longitude };
+
+            if (previousPoint) {
+              distance += geolib.getDistance(previousPoint, currentPoint);
+            }
+
+            previousPoint = currentPoint;
+          },
+          error(error) {
+            console.error('Error querying InfluxDB for distance:', error);
+            reject(error);
+          },
+          complete() {
+            resolve();
+          },
+        });
+      });
+
+      // Convert distance from meters to kilometers
+      analyticsData[vehicleId].distanceTravelled = (distance / 1000).toFixed(2);
+      analyticsData[vehicleId].fuel = (Math.random() * 100).toFixed(2);
+
+    }
+
     // Convert the result object to an array for easier consumption in the frontend
     res.status(200).json(Object.values(analyticsData));
   } catch (error) {
@@ -141,60 +184,6 @@ app.get('/api/vehicle/:vehicleId', async (req, res) => {
     res.status(500).json({ error: 'Error retrieving vehicle data.' });
   }
 });
-
-// Endpoint to retrieve locations of all vehicles
-app.get('/api/locations', async (req, res) => {
-  try {
-    const fluxQuery = `
-      from(bucket: "${bucket}")
-        |> range(start: -30d) // Increase the range to -30 days to ensure we capture data if available
-        |> filter(fn: (r) => r["_measurement"] == "vehicle_telemetry" and (r["_field"] == "latitude" or r["_field"] == "longitude"))
-        |> group(columns: ["vehicleId"])
-        |> last()
-        |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-        |> keep(columns: ["vehicleId", "latitude", "longitude"])
-    `;
-
-    console.log("Executing Flux Query: ", fluxQuery);
-
-    let locations = [];
-    await new Promise((resolve, reject) => {
-      queryApi.queryRows(fluxQuery, {
-        next(row, tableMeta) {
-          const o = tableMeta.toObject(row);
-          console.log("Query Result Row: ", o); // Log the raw row result
-
-          // Check if latitude and longitude are defined, and if so, push to the locations array
-          if (typeof o.latitude !== 'undefined' && typeof o.longitude !== 'undefined') {
-            locations.push({
-              vehicleId: o.vehicleId,
-              latitude: o.latitude,
-              longitude: o.longitude,
-            });
-          }
-        },
-        error(error) {
-          console.error('Error querying InfluxDB:', error);
-          reject(error);
-        },
-        complete() {
-          resolve();
-        },
-      });
-    });
-
-    if (locations.length === 0) {
-      console.warn('No locations found for vehicles.');
-    }
-
-    res.status(200).json(locations);
-  } catch (error) {
-    console.error('Error retrieving vehicle locations:', error);
-    res.status(500).json({ error: 'Error retrieving vehicle locations.' });
-  }
-});
-
-
 
 // Express server for health check
 app.get('/', (req, res) => {

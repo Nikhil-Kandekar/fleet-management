@@ -18,11 +18,11 @@ const maxRetries = 10;
 let retryCount = 0;
 
 const vehicles = [
-  { vehicleId: 'vehicle_001', baseLatitude: 37.7749, baseLongitude: -122.4194 },
-  { vehicleId: 'vehicle_002', baseLatitude: 37.7849, baseLongitude: -122.4294 },
-  { vehicleId: 'vehicle_003', baseLatitude: 37.7949, baseLongitude: -122.4394 },
-  { vehicleId: 'vehicle_004', baseLatitude: 37.8049, baseLongitude: -122.4494 },
-  { vehicleId: 'vehicle_005', baseLatitude: 37.8149, baseLongitude: -122.4594 },
+  { vehicleId: 'vehicle_001', baseLatitude: 26.47234848344981, baseLongitude: 73.11426212196601 ,fuel:50.99},
+  { vehicleId: 'vehicle_002', baseLatitude: 26.47234848344981, baseLongitude: 73.11426212196601 ,fuel:25.23},
+  { vehicleId: 'vehicle_003', baseLatitude: 26.47234848344981, baseLongitude: 73.11426212196601 ,fuel:5.87},
+  { vehicleId: 'vehicle_004', baseLatitude: 26.47234848344981, baseLongitude: 73.11426212196601,fuel:60.77},
+  { vehicleId: 'vehicle_005', baseLatitude: 26.47234848344981, baseLongitude: 73.11426212196601 ,fuel:55.33},
 ];
 
 function connectKafkaProducer() {
@@ -36,12 +36,12 @@ function connectKafkaProducer() {
 
     setInterval(() => {
       vehicles.forEach((vehicle) => {
-        const { vehicleId, baseLatitude, baseLongitude } = vehicle;
+        const { vehicleId, baseLatitude, baseLongitude,fuel } = vehicle;
 
         const message = JSON.stringify({
           vehicleId,
           speed: Math.random() * 100,
-          fuel: Math.random() * 100,
+          fuel: fuel + Math.random() * 100,
           latitude: baseLatitude + Math.random() * 0.01,
           longitude: baseLongitude + Math.random() * 0.01,
           timestamp: new Date().toISOString(),
