@@ -2,17 +2,28 @@
 const fs = require('fs');
 const kafka = require('kafka-node');
 const path = require('path');
-const { InfluxDB, Point } = require('@influxdata/influxdb-client');
+const mongoose = require('mongoose');
+require('dotenv').config();
 
-// Environment variables for InfluxDB
-const INFLUXDB_URL = process.env.INFLUXDB_URL || 'http://telemetry-influxdb:8086';
-const INFLUXDB_TOKEN = process.env.INFLUXDB_TOKEN || 'q6dzJRQWDpdaA62ZuPhcWOlmIongnzO9wvB8ZQodBE2_iWfAuLFAf2LTFakt925wR1F5Yt5sWek5DrOFxslc9g';
-const INFLUXDB_ORG = process.env.INFLUXDB_ORG || 'telemetry_org';
-const INFLUXDB_BUCKET = process.env.INFLUXDB_BUCKET || 'dashcam_metadata';
+// MongoDB setup
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://user-management-db:27017/fleet_users';
 
-// Initialize InfluxDB client
-const influxDB = new InfluxDB({ url: INFLUXDB_URL, token: INFLUXDB_TOKEN });
-const writeApi = influxDB.getWriteApi(INFLUXDB_ORG, INFLUXDB_BUCKET, 'ns');
+// Connect to MongoDB
+mongoose.connect(MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => console.log('MongoDB connected'))
+  .catch((err) => console.error('MongoDB connection error:', err));
+
+// Define VideoSchema
+const videoSchema = new mongoose.Schema({
+  vehicleId: String,
+  filePath: String,
+  timestamp: Date,
+});
+
+const Video = mongoose.model('Video', videoSchema);
 
 // Initialize Kafka Consumer
 const client = new kafka.KafkaClient({ kafkaHost: 'kafka:9092' });
@@ -20,16 +31,15 @@ const consumer = new kafka.Consumer(client, [{ topic: 'dashcam-video-data' }], {
   autoCommit: true,
 });
 
-// Handle incoming messages
 consumer.on('message', async (message) => {
   try {
-    // Parse the message (assumed to be JSON)
-    const { timestamp, vehicleId, data } = JSON.parse(message.value);
+    console.log('Received message from Kafka:', JSON.stringify(message));
 
-    // Convert timestamp to Date object
+    // Parse the message
+    const { timestamp, vehicleId, data } = JSON.parse(message.value);
     const date = new Date(timestamp);
 
-    // Define the storage path using the timestamp
+    // Define storage path and file name
     const datePath = path.join(
       '/app/storage',
       vehicleId,
@@ -41,19 +51,24 @@ consumer.on('message', async (message) => {
     const fileName = `${date.getUTCMinutes().toString().padStart(2, '0')}${date.getUTCSeconds().toString().padStart(2, '0')}_${Date.now()}.mp4`;
     const filePath = path.join(datePath, fileName);
 
-    // Ensure the directory exists
+    console.log(`Storing video at: ${filePath}`);
+
+    // Ensure directory exists
     fs.mkdirSync(datePath, { recursive: true });
 
-    // Write the video chunk to a file
+    // Write video to file
     fs.writeFileSync(filePath, Buffer.from(data, 'base64'));
+    console.log(`Video written successfully to: ${filePath}`);
 
-    // Write metadata to InfluxDB
-    const point = new Point('video_chunks')
-      .tag('vehicleId', vehicleId)
-      .stringField('filePath', filePath)
-      .timestamp(date);
+    // Save metadata to MongoDB
+    const videoRecord = new Video({
+      vehicleId,
+      filePath,
+      timestamp: date,
+    });
 
-    writeApi.writePoint(point);
+    await videoRecord.save();
+    console.log('Video metadata saved to MongoDB:', videoRecord);
   } catch (err) {
     console.error('Error processing message:', err);
   }
@@ -63,12 +78,3 @@ consumer.on('message', async (message) => {
 consumer.on('error', (err) => {
   console.error('Kafka Consumer Error:', err);
 });
-
-// Ensure data is flushed before exiting
-process.on('SIGINT', async () => {
-  console.log('Flushing data to InfluxDB and closing consumer...');
-  await writeApi.flush();
-  await writeApi.close();
-  consumer.close(true, () => process.exit());
-});
-

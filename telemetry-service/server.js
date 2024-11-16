@@ -1,17 +1,15 @@
 const express = require('express');
 const kafka = require('kafka-node');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
 const { InfluxDB, Point } = require('@influxdata/influxdb-client');
+const cors = require('cors');
 
 const app = express();
-const PORT = 6000;
+const PORT = 7001;
 app.use(express.json());
-
-const JWT_SECRET = 'your_jwt_secret_here';
+app.use(cors());
 
 // InfluxDB setup
-const token = 'q6dzJRQWDpdaA62ZuPhcWOlmIongnzO9wvB8ZQodBE2_iWfAuLFAf2LTFakt925wR1F5Yt5sWek5DrOFxslc9g';
+const token = '-5KEJgBrrp9TLocFBoIvlYjFPe41K5vCHuyAatlondgr4vCq7dIZkOnFhkQ-JC3VO9FOUgoFRNURb-1iO-1_cQ=='; // Replace with your actual InfluxDB token
 const org = 'telemetry_org';
 const bucket = 'telemetry_bucket';
 const influx = new InfluxDB({ url: 'http://telemetry-influxdb:8086', token: token });
@@ -43,132 +41,44 @@ consumer.on('message', (message) => {
 
     writeApi.writePoint(telemetryPoint);
     console.log('Telemetry data written to InfluxDB:', telemetryData);
-
-    // Analyze telemetry data and create notifications
-    if (speed > 80) {
-      createNotification(vehicleId, 'High Speed Alert', `Speed exceeded 80 km/h. Current speed: ${speed} km/h`, timestamp);
-    }
-
-    if (speed === 0 && fuel < 10) {
-      createNotification(vehicleId, 'Low Fuel Alert', `Vehicle stopped with low fuel: ${fuel}% remaining`, timestamp);
-    }
-
   } catch (error) {
     console.error('Error processing telemetry data:', error);
   }
 });
 
-// Function to create and write notifications to InfluxDB
-function createNotification(vehicleId, title, message, timestamp) {
-  const notificationPoint = new Point('vehicle_notifications')
-    .tag('vehicleId', vehicleId)
-    .stringField('title', title)
-    .stringField('message', message)
-    .timestamp(new Date(timestamp));
-
-  writeApi.writePoint(notificationPoint);
-  console.log('Notification written to InfluxDB:', { vehicleId, title, message });
-}
-
-// User registration endpoint
-app.post('/api/auth/register', async (req, res) => {
-  const { username, password, role } = req.body;
-
-  if (!username || !password || !role) {
-    return res.status(400).json({ error: 'Username, password, and role are required.' });
-  }
-
-  try {
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Save user to InfluxDB
-    const point = new Point('users')
-      .tag('username', username)
-      .stringField('role', role)
-      .stringField('password', hashedPassword)
-      .timestamp(new Date());
-
-    writeApi.writePoint(point);
-    await writeApi.flush();
-
-    res.status(201).json({ message: 'User registered successfully.' });
-  } catch (error) {
-    console.error('Error registering user:', error);
-    res.status(500).json({ error: 'Error registering user.' });
-  }
-});
-
-// User login endpoint
-app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password are required.' });
-  }
-
-  try {
-    const fluxQuery = `
-      from(bucket: "${bucket}")
-        |> range(start: -30d)
-        |> filter(fn: (r) => r["_measurement"] == "users" and r["username"] == "${username}")
-    `;
-
-    let user = null;
-    await new Promise((resolve, reject) => {
-      queryApi.queryRows(fluxQuery, {
-        next(row, tableMeta) {
-          const o = tableMeta.toObject(row);
-          if (o.password) {
-            user = o;
-          }
-        },
-        error(error) {
-          reject(error);
-        },
-        complete() {
-          resolve();
-        },
-      });
-    });
-
-    if (!user) {
-      return res.status(400).json({ error: 'Invalid username or password' });
-    }
-
-    // Compare hashed passwords
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(400).json({ error: 'Invalid username or password' });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign({ username: user.username, role: user.role }, JWT_SECRET);
-    res.status(200).json({ token });
-  } catch (error) {
-    console.error('Error during login:', error);
-    res.status(500).json({ error: 'Error during login.' });
-  }
-});
-
-// Endpoint to retrieve analytics data
+// Endpoint to retrieve analytics data for all vehicles
 app.get('/api/analytics', async (req, res) => {
   try {
     const fluxQuery = `
       from(bucket: "${bucket}")
         |> range(start: -7d)
         |> filter(fn: (r) => r["_measurement"] == "vehicle_telemetry")
-        |> mean()
+        |> group(columns: ["vehicleId"])
+        |> last()
+        |> keep(columns: ["vehicleId", "_field", "_value"])
     `;
 
-    let analyticsData = [];
+    let analyticsData = {};
     await new Promise((resolve, reject) => {
       queryApi.queryRows(fluxQuery, {
         next(row, tableMeta) {
           const o = tableMeta.toObject(row);
-          analyticsData.push(o);
+          const vehicleId = o.vehicleId;
+
+          // Initialize the vehicle entry if it does not exist
+          if (!analyticsData[vehicleId]) {
+            analyticsData[vehicleId] = { vehicleId };
+          }
+
+          // Assign the value based on the field
+          if (o._field === 'speed') {
+            analyticsData[vehicleId].speed = o._value;
+          } else if (o._field === 'fuel') {
+            analyticsData[vehicleId].fuel = o._value;
+          }
         },
         error(error) {
+          console.error('Error querying InfluxDB:', error);
           reject(error);
         },
         complete() {
@@ -177,12 +87,114 @@ app.get('/api/analytics', async (req, res) => {
       });
     });
 
-    res.status(200).json(analyticsData);
+    // Convert the result object to an array for easier consumption in the frontend
+    res.status(200).json(Object.values(analyticsData));
   } catch (error) {
     console.error('Error retrieving analytics data:', error);
     res.status(500).json({ error: 'Error retrieving analytics data.' });
   }
 });
+
+// Endpoint to retrieve data for a single vehicle
+app.get('/api/vehicle/:vehicleId', async (req, res) => {
+  const { vehicleId } = req.params;
+
+  try {
+    const fluxQuery = `
+      from(bucket: "${bucket}")
+        |> range(start: -7d)
+        |> filter(fn: (r) => r["_measurement"] == "vehicle_telemetry" and r["vehicleId"] == "${vehicleId}")
+        |> last()
+        |> keep(columns: ["vehicleId", "_field", "_value"])
+    `;
+
+    let vehicleData = { vehicleId };
+    await new Promise((resolve, reject) => {
+      queryApi.queryRows(fluxQuery, {
+        next(row, tableMeta) {
+          const o = tableMeta.toObject(row);
+
+          // Assign the value based on the field
+          if (o._field === 'speed') {
+            vehicleData.speed = o._value;
+          } else if (o._field === 'fuel') {
+            vehicleData.fuel = o._value;
+          } else if (o._field === 'latitude') {
+            vehicleData.latitude = o._value;
+          } else if (o._field === 'longitude') {
+            vehicleData.longitude = o._value;
+          }
+        },
+        error(error) {
+          console.error('Error querying InfluxDB:', error);
+          reject(error);
+        },
+        complete() {
+          resolve();
+        },
+      });
+    });
+
+    res.status(200).json(vehicleData);
+  } catch (error) {
+    console.error('Error retrieving vehicle data:', error);
+    res.status(500).json({ error: 'Error retrieving vehicle data.' });
+  }
+});
+
+// Endpoint to retrieve locations of all vehicles
+app.get('/api/locations', async (req, res) => {
+  try {
+    const fluxQuery = `
+      from(bucket: "${bucket}")
+        |> range(start: -30d) // Increase the range to -30 days to ensure we capture data if available
+        |> filter(fn: (r) => r["_measurement"] == "vehicle_telemetry" and (r["_field"] == "latitude" or r["_field"] == "longitude"))
+        |> group(columns: ["vehicleId"])
+        |> last()
+        |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+        |> keep(columns: ["vehicleId", "latitude", "longitude"])
+    `;
+
+    console.log("Executing Flux Query: ", fluxQuery);
+
+    let locations = [];
+    await new Promise((resolve, reject) => {
+      queryApi.queryRows(fluxQuery, {
+        next(row, tableMeta) {
+          const o = tableMeta.toObject(row);
+          console.log("Query Result Row: ", o); // Log the raw row result
+
+          // Check if latitude and longitude are defined, and if so, push to the locations array
+          if (typeof o.latitude !== 'undefined' && typeof o.longitude !== 'undefined') {
+            locations.push({
+              vehicleId: o.vehicleId,
+              latitude: o.latitude,
+              longitude: o.longitude,
+            });
+          }
+        },
+        error(error) {
+          console.error('Error querying InfluxDB:', error);
+          reject(error);
+        },
+        complete() {
+          resolve();
+        },
+      });
+    });
+
+    if (locations.length === 0) {
+      console.warn('No locations found for vehicles.');
+    }
+
+    res.status(200).json(locations);
+  } catch (error) {
+    console.error('Error retrieving vehicle locations:', error);
+    res.status(500).json({ error: 'Error retrieving vehicle locations.' });
+  }
+});
+
+
 
 // Express server for health check
 app.get('/', (req, res) => {

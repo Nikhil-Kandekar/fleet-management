@@ -2,20 +2,34 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { InfluxDB } = require('@influxdata/influxdb-client');
+const mongoose = require('mongoose');
+require('dotenv').config();
+const cors = require('cors');
 
 const app = express();
-const port = 7000;
+const port = 7002;
 
-// Environment variables for InfluxDB
-const INFLUXDB_URL = process.env.INFLUXDB_URL || 'http://telemetry-influxdb:8086';
-const INFLUXDB_TOKEN = process.env.INFLUXDB_TOKEN || 'q6dzJRQWDpdaA62ZuPhcWOlmIongnzO9wvB8ZQodBE2_iWfAuLFAf2LTFakt925wR1F5Yt5sWek5DrOFxslc9g';
-const INFLUXDB_ORG = process.env.INFLUXDB_ORG || 'telemetry_org';
-const INFLUXDB_BUCKET = process.env.INFLUXDB_BUCKET || 'dashcam_metadata';
+app.use(cors());
 
-// Initialize InfluxDB client
-const influxDB = new InfluxDB({ url: INFLUXDB_URL, token: INFLUXDB_TOKEN });
-const queryApi = influxDB.getQueryApi(INFLUXDB_ORG);
+// MongoDB setup
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://user-management-db:27017/fleet_users';
+
+// Connect to MongoDB
+mongoose.connect(MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => console.log('MongoDB connected'))
+  .catch((err) => console.error('MongoDB connection error:', err));
+
+// Define VideoSchema
+const videoSchema = new mongoose.Schema({
+  vehicleId: String,
+  filePath: String,
+  timestamp: Date,
+});
+
+const Video = mongoose.model('Video', videoSchema);
 
 // Endpoint to request video streams based on date range and vehicle ID
 app.get('/videos', async (req, res) => {
@@ -27,85 +41,37 @@ app.get('/videos', async (req, res) => {
     });
   }
 
-  const startDate = new Date(startTime);
-  const endDate = new Date(endTime);
-
-  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-    return res.status(400).json({
-      error: 'Invalid date format. Use ISO 8601 format for startTime and endTime.',
-    });
-  }
-
   try {
-    // Build the Flux query
-    const fluxQuery = `
-      from(bucket: "${INFLUXDB_BUCKET}")
-        |> range(start: ${startDate.toISOString()}, stop: ${endDate.toISOString()})
-        |> filter(fn: (r) => r["_measurement"] == "video_chunks" and r["vehicleId"] == "${vehicleId}")
-        |> sort(columns: ["_time"], desc: false)
-    `;
+    // Query MongoDB for video file paths within the date range for the given vehicle ID
+    const videoRecords = await Video.find({
+      vehicleId,
+      timestamp: { $gte: new Date(startTime), $lte: new Date(endTime) },
+    }).sort({ timestamp: 1 });
 
-    const filePaths = [];
-
-    // Execute the query
-    await new Promise((resolve, reject) => {
-      queryApi.queryRows(fluxQuery, {
-        next(row, tableMeta) {
-          const o = tableMeta.toObject(row);
-          if (o._field === 'filePath') {
-            filePaths.push(o._value);
-          }
-        },
-        error(error) {
-          console.error('Error querying InfluxDB:', error);
-          reject(error);
-        },
-        complete() {
-          resolve();
-        },
-      });
-    });
-
-    if (filePaths.length === 0) {
+    if (videoRecords.length === 0) {
       return res.status(404).json({
         error: 'No video data available for the specified parameters.',
       });
     }
+    console.log(videoRecords);
 
-    // Set response headers for video streaming
-    res.writeHead(200, {
-      'Content-Type': 'video/mp4',
-    });
-
-    // Function to stream video files sequentially
-    const streamVideoFiles = async () => {
-      for (const filePath of filePaths) {
-        if (fs.existsSync(filePath)) {
-          // Create a readable stream for the video file
-          const videoStream = fs.createReadStream(filePath);
-
-          // Pipe the video stream to the response
-          await new Promise((resolve, reject) => {
-            videoStream.on('end', resolve);
-            videoStream.on('error', reject);
-            videoStream.pipe(res, { end: false });
-          });
-        } else {
-          console.warn(`Video file not found: ${filePath}`);
-        }
-      }
-      // End the response once all video files have been streamed
-      res.end();
-    };
-
-    // Start streaming the video files
-    streamVideoFiles().catch((err) => {
-      console.error('Error streaming video files:', err);
-      res.status(500).json({ error: 'Error streaming video files.' });
-    });
+    res.json(videoRecords);
   } catch (err) {
     console.error('Error retrieving video data:', err);
     res.status(500).json({ error: 'Error retrieving video data.' });
+  }
+});
+
+// Serve video files
+app.get('/storage/:vehicleId/:year/:month/:day/:hour/:file', (req, res) => {
+  const { vehicleId, year, month, day, hour, file } = req.params;
+  const filePath = path.join('/app/storage', vehicleId, year, month, day, hour, file);
+
+  if (fs.existsSync(filePath)) {
+    res.setHeader('Content-Type', 'video/mp4');
+    res.sendFile(filePath);
+  } else {
+    res.status(404).json({ error: 'Video file not found' });
   }
 });
 

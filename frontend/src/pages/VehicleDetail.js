@@ -28,7 +28,7 @@ function VehicleDetail() {
 
   const fetchVideo = async () => {
     try {
-      const response = await axios.get(`http://localhost:7000/videos`, {
+      const response = await axios.get(`http://localhost:7002/videos`, {
         params: { startTime, endTime, vehicleId },
         responseType: 'blob',
       });

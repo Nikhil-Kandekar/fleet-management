@@ -10,17 +10,19 @@ function VideoPlayback() {
 
   const fetchVideo = async () => {
     try {
-      const response = await axios.get(`http://localhost:7000/videos`, {
+      const response = await axios.get(`http://localhost:7002/videos`, {
         params: {
           startTime,
           endTime,
           vehicleId,
         },
-        responseType: 'blob',
+        responseType: 'json',
       });
-      // Create an object URL for the video blob
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      setVideoUrl(url);
+
+      if (response.data.length > 0) {
+        const filePath = response.data[0].filePath;
+        setVideoUrl(`http://localhost:7002/storage${filePath}`);
+      }
     } catch (error) {
       console.error('Error fetching video:', error);
     }

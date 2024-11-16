@@ -24,14 +24,12 @@ function Navbar() {
           <Link to="/notifications" className="hover:text-blue-300">Notifications</Link>
           <Link to="/video" className="hover:text-blue-300">Dashcam</Link>
           <Link to="/analytics" className="hover:text-blue-300">Analytics</Link>
+          <Link to="/map" className="hover:text-blue-300">Map</Link>
         </div>
 
         {/* User Avatar */}
         <div className="hidden md:flex items-center space-x-4">
           <UserCircleIcon className="h-8 w-8 hover:text-blue-300 cursor-pointer" />
-          <Link to="/login" className="px-4 py-2 bg-white text-blue-600 rounded-md hover:bg-gray-100">
-            Login
-          </Link>
         </div>
 
         {/* Mobile Menu Button */}
@@ -55,7 +53,7 @@ function Navbar() {
             <Link to="/notifications" className="block hover:bg-blue-500 p-2 rounded-md">Notifications</Link>
             <Link to="/video" className="block hover:bg-blue-500 p-2 rounded-md">Dashcam</Link>
             <Link to="/analytics" className="block hover:bg-blue-500 p-2 rounded-md">Analytics</Link>
-            <Link to="/login" className="block hover:bg-blue-500 p-2 rounded-md">Login</Link>
+            <Link to="/map" className="block hover:bg-blue-500 p-2 rounded-md">Map</Link>
           </div>
         </div>
       )}

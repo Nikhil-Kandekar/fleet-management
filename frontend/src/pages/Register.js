@@ -1,38 +1,21 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-
 function Register() {
-  // Define state variables
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const navigate = useNavigate();
+  const [role, setRole] = useState('');
 
-
-  const handleRegister = async(e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
-    if (password !== confirmPassword) {
-      alert('Passwords do not match');
-      return;
-    }
-    // Implement registration logic here
-    console.log('Register:', { email, password });
-   
     try {
-        // Send registration data to the telemetry service
-        await axios.post('http://localhost:6000/register', {
-          email,
-          password,
-        });
-        alert('Registered: You will be redirected to Login Page');
-        // Redirect to login page after successful registration
-        navigate('/login');
-      } catch (error) {
-        console.error('Error registering user:', error);
-        alert('Registration failed. Please try again.');
-      }
+      const response = await axios.post('http://localhost:5000/api/auth/register', { username, password, role });
+      alert('User registered successfully');
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Error registering user:', error);
+      alert('Registration failed. Please try again.');
+    }
   };
 
   return (
@@ -41,22 +24,18 @@ function Register() {
         <h2 className="text-2xl font-bold text-center text-gray-900">Create an Account</h2>
         <form className="space-y-6" onSubmit={handleRegister}>
           <div className="space-y-2">
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Email Address
-            </label>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700">Username</label>
             <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              id="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring focus:border-blue-300"
               required
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Password
-            </label>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
             <input
               type="password"
               id="password"
@@ -67,14 +46,12 @@ function Register() {
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700">
-              Confirm Password
-            </label>
+            <label htmlFor="role" className="block text-sm font-medium text-gray-700">Role</label>
             <input
-              type="password"
-              id="confirm-password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              type="text"
+              id="role"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring focus:border-blue-300"
               required
             />

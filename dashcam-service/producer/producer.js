@@ -1,47 +1,46 @@
+// producer.js
 const fs = require('fs');
 const kafka = require('kafka-node');
 const path = require('path');
 
-// Initialize Kafka Producer
+// Kafka configuration
 const client = new kafka.KafkaClient({ kafkaHost: 'kafka:9092' });
 const producer = new kafka.Producer(client);
 
-// Handle producer readiness
 producer.on('ready', () => {
   console.log('Kafka Producer is connected and ready.');
-  sendVideoChunks();
+  setInterval(sendVideoFile, 10000); // Send video every 10 seconds
 });
 
-// Handle errors
 producer.on('error', (err) => {
   console.error('Kafka Producer Error:', err);
 });
 
-// Function to send video chunks
-function sendVideoChunks() {
+// Function to send the entire video file
+function sendVideoFile() {
   const vehicleId = 'vehicle_123';
-  const videoFilePath = './videos/video.mp4';
+  const videoFilePath = path.join(__dirname, 'videos', 'video.mp4');
 
-  // Read the video file
-  const videoStream = fs.createReadStream(videoFilePath, { highWaterMark: 65536 }); // 64KB chunks
+  fs.readFile(videoFilePath, (err, data) => {
+    if (err) {
+      return console.error('Error reading video file:', err);
+    }
+    console.log('data\n',data);
 
-  videoStream.on('data', (chunk) => {
     const message = JSON.stringify({
       timestamp: new Date().toISOString(),
       vehicleId,
-      data: chunk.toString('base64'),
+      data: data.toString('base64'), // Send the video file as a base64 encoded string
     });
 
-    const payloads = [
-      { topic: 'dashcam-video-data', messages: message },
-    ];
+    const payloads = [{ topic: 'dashcam-video-data', message: message }];
 
     producer.send(payloads, (err, data) => {
-      if (err) console.error('Error sending message:', err);
+      if (err) {
+        console.error('Error sending video file:', err);
+      } else {
+        console.log('Video file sent successfully:', data);
+      }
     });
-  });
-
-  videoStream.on('end', () => {
-    console.log('Finished sending video chunks.');
   });
 }

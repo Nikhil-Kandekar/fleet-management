@@ -14,7 +14,7 @@ RUN npm install
 COPY . .
 
 # Expose port 7000 (the port your API listens on)
-EXPOSE 7000
+EXPOSE 7002
 
 # Command to run your application
 CMD ["node", "server.js"]

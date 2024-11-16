@@ -25,7 +25,7 @@ services:
       - "8087:8086"
     environment:
       - INFLUXDB_URL=http://telemetry-influxdb:8086
-      - INFLUXDB_TOKEN=q6dzJRQWDpdaA62ZuPhcWOlmIongnzO9wvB8ZQodBE2_iWfAuLFAf2LTFakt925wR1F5Yt5sWek5DrOFxslc9g
+      - INFLUXDB_TOKEN=-5KEJgBrrp9TLocFBoIvlYjFPe41K5vCHuyAatlondgr4vCq7dIZkOnFhkQ-JC3VO9FOUgoFRNURb-1iO-1_cQ==
       - INFLUXDB_ORG=telemetry_org
       - INFLUXDB_BUCKET=telemetry_bucket
       - DOCKER_INFLUXDB_INIT_BUCKET=dashcam_metadata
@@ -56,6 +56,7 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_MESSAGE_MAX_BYTES: 52428800
     depends_on:
       - zookeeper
     networks:
@@ -64,14 +65,14 @@ services:
   telemetry-service:
     build: ./telemetry-service
     ports:
-      - "6000:6000"
+      - "7001:7001"
     depends_on:
       - telemetry-influxdb
       - kafka
     restart: always
     environment:
       - INFLUXDB_URL=http://telemetry-influxdb:8086
-      - INFLUXDB_TOKEN=q6dzJRQWDpdaA62ZuPhcWOlmIongnzO9wvB8ZQodBE2_iWfAuLFAf2LTFakt925wR1F5Yt5sWek5DrOFxslc9g
+      - INFLUXDB_TOKEN=-5KEJgBrrp9TLocFBoIvlYjFPe41K5vCHuyAatlondgr4vCq7dIZkOnFhkQ-JC3VO9FOUgoFRNURb-1iO-1_cQ==
       - INFLUXDB_ORG=telemetry_org
       - INFLUXDB_BUCKET=telemetry_bucket
     networks:
@@ -95,30 +96,24 @@ services:
     build: ./dashcam-service/consumer
     depends_on:
       - kafka
-      - telemetry-influxdb
+      - user-management-db
     volumes:
       - ./dashcam-service/storage:/app/storage
     environment:
-      - INFLUXDB_URL=http://telemetry-influxdb:8086
-      - INFLUXDB_TOKEN=q6dzJRQWDpdaA62ZuPhcWOlmIongnzO9wvB8ZQodBE2_iWfAuLFAf2LTFakt925wR1F5Yt5sWek5DrOFxslc9g
-      - INFLUXDB_ORG=telemetry_org
-      - INFLUXDB_BUCKET=dashcam_metadata
+      - MONGO_URI=mongodb://user-management-db:27017/fleet_users
     networks:
       - fleet-net
 
   dashcam-api:
     build: ./dashcam-service/api
     ports:
-      - '7000:7000'
+      - '7002:7002'
     depends_on:
-      - telemetry-influxdb
+      - user-management-db
     volumes:
       - ./dashcam-service/storage:/app/storage
     environment:
-      - INFLUXDB_URL=http://telemetry-influxdb:8086
-      - INFLUXDB_TOKEN=q6dzJRQWDpdaA62ZuPhcWOlmIongnzO9wvB8ZQodBE2_iWfAuLFAf2LTFakt925wR1F5Yt5sWek5DrOFxslc9g
-      - INFLUXDB_ORG=telemetry_org
-      - INFLUXDB_BUCKET=dashcam_metadata
+      - MONGO_URI=mongodb://user-management-db:27017/fleet_users
     networks:
       - fleet-net
 
@@ -138,3 +133,5 @@ volumes:
 networks:
   fleet-net:
     driver: bridge
+
+
