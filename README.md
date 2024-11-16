@@ -1,4 +1,4 @@
-# Fleet Management System
+Fleet Management System
 =======================
 
 A scalable, real-time fleet management system designed to monitor vehicles using GPS, vehicle telemetry data, and dashcam footage. The system provides real-time analytics, incident alerts, and role-based dashboards to fleet operators.
@@ -9,10 +9,25 @@ Features
 -   **Real-Time Vehicle Tracking**: Monitor location, speed, fuel levels, and other telemetry data.
 -   **Dashcam Footage Viewer**: Stream and store dashcam videos with metadata for retrieval.
 -   **Role-Based Management**: User authentication and dashboards with role-specific views.
--   **Accident Alerts**: Analyze sudden speed drops to detect potential accidents and notify operators.
--   **Push Notifications**: Store notifications in InfluxDB and display them on the frontend.
 -   **Analytics Dashboard**: Visualize real-time and historical analytics (e.g., average speed, fuel consumption).
 -   **Maps Integration**: Track vehicle routes and statuses with map overlays.
+
+Relevant Frontend Components
+----------------------------
+
+### Functional Files
+
+The following files are used in the `frontend` folder for the project:
+
+1.  **Dashboard**: Displays the fleet overview, including vehicle statuses and notifications.
+2.  **Analytics**: Provides detailed analytics and charts for telemetry data.
+3.  **Login**: Handles user authentication and login functionality.
+4.  **Register**: Allows new users to sign up for the system.
+5.  **Video Playback**: Plays dashcam footage based on timestamps.
+
+### Unused Files
+
+All other files and components in the `frontend` folder are not currently used in the system.
 
 Architecture
 ------------
@@ -27,20 +42,6 @@ The Fleet Management System follows a microservices-based architecture:
 -   **Messaging Queue**: Apache Kafka for processing telemetry data and video streams.
 -   **Deployment**: Supports local and cloud deployments with scalability in mind.
 
-System Workflow
----------------
-
-1.  **Telemetry Data Pipeline**:
-    -   Kafka producer sends vehicle telemetry data (e.g., GPS, speed, fuel).
-    -   Kafka consumer stores data in InfluxDB.
-2.  **Dashcam Footage Handling**:
-    -   Kafka producer streams 10-second dashcam video chunks.
-    -   Consumer renames and stores videos with timestamps in block storage.
-    -   Frontend retrieves videos by timestamp for user playback.
-3.  **Real-Time Analytics**:
-    -   Analyze telemetry data for trends like mileage, accident detection, and fuel efficiency.
-    -   Push analytics and alerts to the dashboard.
-
 Setup Instructions
 ------------------
 
@@ -50,7 +51,6 @@ Setup Instructions
 -   **React.js** (latest version)
 -   **Kafka** (local setup or cloud service)
 -   **InfluxDB** (for telemetry and notification data)
--   **MongoDB** (optional for user management if JWT-based login is implemented)
 -   **Docker** (optional for containerized deployments)
 
 ### Installation
@@ -64,16 +64,7 @@ Setup Instructions
     `git clone https://github.com/Nikhil-Kandekar/fleet-management.git
     cd fleet-management`
 
-2.  Install backend dependencies:
-
-    bash
-
-    Copy code
-
-    `cd backend
-    npm install`
-
-3.  Install frontend dependencies:
+2.  Install frontend dependencies:
 
     bash
 
@@ -82,56 +73,23 @@ Setup Instructions
     `cd frontend
     npm install`
 
-4.  Start services:
+3.  Start the frontend:
 
-    -   **Kafka**: Follow Kafka documentation for local setup.
-    -   **InfluxDB**: Set up using Docker or local installation with username `admin` and password `nbknbknbk`.
-    -   **Backend**:
+    bash
 
-        bash
+    Copy code
 
-        Copy code
-
-        `cd backend
-        npm start`
-
-    -   **Frontend**:
-
-        bash
-
-        Copy code
-
-        `cd frontend
-        npm start`
+    `npm start`
 
 ### Environment Variables
 
-Create a `.env` file in the `backend` folder:
+Create a `.env` file in the `frontend` folder:
 
 env
 
 Copy code
 
-`KAFKA_BROKER=localhost:9092
-INFLUXDB_URL=http://localhost:8086
-INFLUXDB_USERNAME=admin
-INFLUXDB_PASSWORD=nbknbknbk
-BLOCK_STORAGE_PATH=/path/to/block/storage
-JWT_SECRET=your_jwt_secret`
-
-### API Endpoints
-
-#### Backend
-
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/vehicles` | GET | Get vehicle telemetry data. |
-| `/api/dashcam/video` | GET | Fetch dashcam footage by timestamp. |
-| `/api/notifications` | GET | Get notifications from InfluxDB. |
-
-#### Frontend
-
-React app connects to the backend and provides real-time visualizations, maps, and dashboards.
+`REACT_APP_BACKEND_URL=http://localhost:5000`
 
 Contribution
 ------------
